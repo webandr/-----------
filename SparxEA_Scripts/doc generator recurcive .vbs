@@ -12,6 +12,20 @@ option explicit
 ' Related APIs
 ' =================================================================================
 '
+
+dim STATUS_FILTER
+STATUS_FILTER = ""
+'STATUS_FILTER = "Approved"
+
+dim STATUS_VERSION
+STATUS_VERSION = ""
+'STATUS_VERSION = "1.1" 'подумать как быть 5 ВИ всего 3 ВИ версии 1.0 и не менялись 2 версии и 1.0 и 1.1 как тут фильтровать? без сложного запроса.
+					   ' вариант 1 - 3 ВИ 1.0 остаются там где были и копи паст линки на диаграммы. Версия := 1.1. Фильтр по 1.1.
+					   ' вариант 2 - 3 ВИ 1.0 копируются как новые ВИ (неудобно если там много связей) и версия := 1.1. ФИльтр по 1.1.
+
+dim STATUS_PATH
+STATUS_PATH = "Поведение системы (ПС) в.1.1 "
+
 dim MAX_UC_DEEP_LEVEL
 MAX_UC_DEEP_LEVEL=2
 
@@ -104,11 +118,14 @@ sub DocumentationExample()
 							ReportInfo currentElement.Name + " ======> " + connectedElement.Type + " " + connectedElement.Name 
 						end if
 						
-						if (connectedElement.Type = "UseCase" OR connectedElement.Type = "Collaboration") then
+						if (connectedElement.Type = "UseCase" OR connectedElement.Type = "Collaboration") and filterElement(Repository.GetElementByID(connectedElement.ElementID)) then
 						
 							' Generate Use Case documentation
-							ReportInfo "Generating documentation for connected UseCase: " + connectedElement.Name
+							ReportInfo "Generating documentation for " & directionArrow(currentConnector.Direction,"") & " UseCase: " + connectedElement.Name
 							
+							generationSuccess = docGenerator.InsertBreak(0)
+							docGenerator.InsertText directionArrow(currentConnector.Direction,""), alignLeft
+							'generationSuccess = docGenerator.InsertBreak(1)
 							
 							generationSuccess = docGenerator.DocumentElement( connectedElement.ElementID, 2, USECASE_TEMPLATE )
 							if generationSuccess = false then
@@ -131,7 +148,6 @@ sub DocumentationExample()
 									generateSubUC reportedUCs, docGenerator, connectedElement, ConnectedElementConnectors, x, 1, MAX_UC_DEEP_LEVEL
 								next
 							end if 'if ConnectedElementConnectors.Count > 1 then
-						
 						end if 'if connectedElement.Type = "UseCase" then
 						
 					next 'packageElements.GetAt( i ).Connectors
@@ -186,48 +202,62 @@ function generateUC(ByRef reportedUCs, ByRef docGenerator, ByVal connectedElemen
 	if (currentCECElement.Name = connectedElement.Name) then 'and (colContains(reportedUCs, connectedElement.ElementID) > 0) then
 		set CCconnectedElement = Repository.GetElementByID( currentCEConnector.ClientID )
 		'Session.Output CCconnectedElement.Name + "<" + CCconnectedElement.Type  + ">" 
-		if (CCconnectedElement.Type = "UseCase" OR CCconnectedElement.Type = "Collaboration") then
-			Session.Output "{" + currentCEConnector.Stereotype + "}" + CCconnectedElement.Name + " <S-Dest> element = " + connectedElement.Name
+		if (CCconnectedElement.Type = "UseCase" OR CCconnectedElement.Type = "Collaboration") and filterElement(Repository.GetElementByID(CCconnectedElement.ElementID)) then
+			Session.Output "(" & CCconnectedElement.Name & ")" & + " === {" + currentCEConnector.Stereotype + "} =====> " + connectedElement.Name
 			if currentCEConnector.Stereotype = "extend" then 
 				sstereotype = "extending" 
 			else 
 				sstereotype = "Including" 
 			end if
-			if colContains(reportedUCs, CCconnectedElement.ElementID) = 0 then
-				if (currentCEConnector.Direction = "Source -> Destination") then
+			if colContains(reportedUCs, CCconnectedElement.ElementID) = 0  then
+				generationSuccess = docGenerator.InsertBreak(0)
+				docGenerator.InsertText directionArrow("Destination -> Source", currentCEConnector.Stereotype), alignLeft
+				generationSuccess = docGenerator.DocumentElement( CCconnectedElement.ElementID, level+2, "My UC details" )
+				'if (currentCEConnector.Direction = "Source -> Destination") then
 					' level+2 так как когда level=1 то это значит что в отчет надо вставить Header3
-					generationSuccess = docGenerator.DocumentElement( CCconnectedElement.ElementID, level+2, "My " + sstereotype + " UC details" )
-				else
-					generationSuccess = docGenerator.DocumentElement( CCconnectedElement.ElementID, level+2, "My " + sstereotype + " UC details" )
-				end if
-				if generationSuccess = false then
-					ReportWarning "Error generating UseCase documentation: " + docGenerator.GetLastError()
-				else
-					'reportedUCs.AddNew CCconnectedElement.Name, "String"
-					' reportedUCs = reportedUCs & CCconnectedElement.ElementID & "!"
-				end if	
+				'	generationSuccess = docGenerator.DocumentElement( CCconnectedElement.ElementID, level+2, "My " + sstereotype + " UC details" )
+				'else
+				'	generationSuccess = docGenerator.DocumentElement( CCconnectedElement.ElementID, level+2, "My " + sstereotype + " UC details" )
+				'end if
+				'if generationSuccess = false then
+				'	ReportWarning "Error generating UseCase documentation: " + docGenerator.GetLastError()
+				'end if	
+			else
+				'generationSuccess = docGenerator.InsertBreak(1)
+				docGenerator.InsertText directionArrow("Destination -> Source", currentCEConnector.Stereotype), alignLeft
+				generationSuccess = docGenerator.DocumentElement( CCconnectedElement.ElementID, level+2, "My UC name only" )
+				docGenerator.InsertText "... ВИ уже присутствует в документе выше. ", alignCenter
+				'generationSuccess = docGenerator.InsertBreak(1)
 			end if
 		end if
 	else
 		set CCconnectedElement = Repository.GetElementByID( currentCEConnector.SupplierID )
-		if (CCconnectedElement.Type = "UseCase" OR CCconnectedElement.Type = "Collaboration") then
-			Session.Output "{" + currentCEConnector.Stereotype + "}" + connectedElement.Name + " <D-Source> element = " + currentCECElement.Name
+		if (CCconnectedElement.Type = "UseCase" OR CCconnectedElement.Type = "Collaboration") and filterElement(Repository.GetElementByID(CCconnectedElement.ElementID))  then
+			Session.Output connectedElement.Name + " <===== {" + currentCEConnector.Stereotype + "} ===" + "(" + currentCECElement.Name + ")"
 			if currentCEConnector.Stereotype = "extend" then 
 				sstereotype = "extended" 
 			else 
 				sstereotype = "Included" 
 			end if
 			if colContains(reportedUCs, CCconnectedElement.Name) = 0 then
-				if (currentCEConnector.Direction = "Source -> Destination") then
-					generationSuccess = docGenerator.DocumentElement( CCconnectedElement.ElementID, level+2, "My " + sstereotype + " UC details" )
-				else
-					generationSuccess = docGenerator.DocumentElement( CCconnectedElement.ElementID, level+2, "My " + sstereotype + " UC details" )
-				end if
-				if generationSuccess = false then
-					ReportWarning "Error generating UseCase documentation: " + docGenerator.GetLastError()
-				else
-					'reportedUCs.AddNew CCconnectedElement.Name, "String"
-				end if	
+				generationSuccess = docGenerator.InsertBreak(0)
+				docGenerator.InsertText directionArrow("Source -> Destination", currentCEConnector.Stereotype), alignLeft
+				generationSuccess = docGenerator.DocumentElement( CCconnectedElement.ElementID, level+2, "My UC details" )
+
+				'if (currentCEConnector.Direction = "Source -> Destination") then
+				'	generationSuccess = docGenerator.DocumentElement( CCconnectedElement.ElementID, level+2, "My " + sstereotype + " UC details" )
+				'else
+				'	generationSuccess = docGenerator.DocumentElement( CCconnectedElement.ElementID, level+2, "My " + sstereotype + " UC details" )
+				'end if
+				'if generationSuccess = false then
+				'	ReportWarning "Error generating UseCase documentation: " + docGenerator.GetLastError()
+				'end if	
+			else
+				'generationSuccess = docGenerator.InsertBreak(1)
+				docGenerator.InsertText directionArrow("Source -> Destination", currentCEConnector.Stereotype), alignLeft
+				generationSuccess = docGenerator.DocumentElement( CCconnectedElement.ElementID, level+2, "My UC name only" )
+				docGenerator.InsertText "... ВИ уже присутствует в документе выше. ", alignCenter
+				'generationSuccess = docGenerator.InsertBreak(1)
 			end if
 		end if
 	end if
@@ -258,46 +288,51 @@ function generateSubUC(ByRef reportedUCs, ByRef docGenerator, ByVal connectedEle
 		' Get the current connector and the element that it connects to
 		dim sub_currentConnector as EA.Connector
 		dim sub_connectedElement as EA.Element
-						
-	if (currentCECElement.Name = connectedElement.Name) then 'and (colContains(reportedUCs, connectedElement.ElementID) > 0) then
+
+	sident = ""
+	for i = 2 to level
+		sident = sident & ">>>>> "
+	next
+					
+	if (currentCECElement.Name = connectedElement.Name)  then 'and (colContains(reportedUCs, connectedElement.ElementID) > 0) then
 		set CCconnectedElement = Repository.GetElementByID( currentCEConnector.ClientID )
 		'Session.Output CCconnectedElement.Name + "<" + CCconnectedElement.Type  + ">" 
-		if (CCconnectedElement.Type = "UseCase" OR CCconnectedElement.Type = "Collaboration") then
+		if (CCconnectedElement.Type = "UseCase" OR CCconnectedElement.Type = "Collaboration") and filterElement(Repository.GetElementByID(CCconnectedElement.ElementID)) then
 			' recurcive call for sub cases 
 			set subConnectedElementConnectors = CCconnectedElement.Connectors	
 			if subConnectedElementConnectors.Count > 1 then
 				if colContains(reportedUCs, CCconnectedElement.ElementID) = 0 then
 					Session.Output "The sub " + CCconnectedElement.name + " has " + CStr(subConnectedElementConnectors.Count) + " connections ."
-						sident = ""
-						for i = 2 to level
-							sident = sident & ">>>>> "
-						next
 						docGenerator.InsertText sident & " Составляющие ВИ: " & CCconnectedElement.Name, alignLeft
-						generationSuccess = docGenerator.InsertBreak(1)
+						'generationSuccess = docGenerator.InsertBreak(1)
 					for z = 0 to subConnectedElementConnectors.Count - 1
 						generateUC reportedUCs, docGenerator, CCconnectedElement, subConnectedElementConnectors, z, level, levelMax			
 					next
+				else
+					generationSuccess = docGenerator.InsertBreak(1)
+					docGenerator.InsertText sident & " Составляющие ВИ: " & CCconnectedElement.Name & " уже приведены выше.", "Header4" 'alignLeft
+					generationSuccess = docGenerator.InsertBreak(1)			
 				end if
 			end if
 			reportedUCs = reportedUCs & connectedElement.ElementID & "!"
 		end if
 	else
 		set CCconnectedElement = Repository.GetElementByID( currentCEConnector.SupplierID )
-		if (CCconnectedElement.Type = "UseCase" OR CCconnectedElement.Type = "Collaboration") then
+		if (CCconnectedElement.Type = "UseCase" OR CCconnectedElement.Type = "Collaboration") and filterElement(Repository.GetElementByID(CCconnectedElement.ElementID)) then
 			' recurcive call for sub cases 
 			set subConnectedElementConnectors = CCconnectedElement.Connectors	
 			if subConnectedElementConnectors.Count > 1 then
 				if colContains(reportedUCs, CCconnectedElement.ElementID) = 0 then
 					Session.Output "The sub " + CCconnectedElement.Name + " has " + CStr(subConnectedElementConnectors.Count) + " connections ."
-						sident = ""
-						for i = 2 to level
-							sident = sident & ">>>>> "
-						next
 						docGenerator.InsertText sident & " Составляющие ВИ: " & CCconnectedElement.Name, alignLeft					
 						generationSuccess = docGenerator.InsertBreak(1)
 					for z = 0 to subConnectedElementConnectors.Count - 1
 						generateUC reportedUCs, docGenerator, CCconnectedElement, subConnectedElementConnectors, z, level, levelMax			
 					next
+				else
+					generationSuccess = docGenerator.InsertBreak(1)
+					docGenerator.InsertText sident & " Составляющие ВИ: " & CCconnectedElement.Name & " уже приведены выше.", "Header4" 'alignLeft
+					generationSuccess = docGenerator.InsertBreak(1)						
 				end if
 			end if
 			reportedUCs = reportedUCs & connectedElement.ElementID & "!"
@@ -336,4 +371,78 @@ sub ReportFatal( message )
 	Session.Prompt message, promptOK
 end sub
 
+
+function directionArrow(ByVal direction, ByVal stereotype)
+	if (direction="Source -> Destination") then
+		if (stereotype = "extend") then
+			directionArrow = " ==(" & stereotype &")===> "
+		else 
+			if(stereotype <> "" ) then
+				directionArrow = " ==(" & stereotype &")===> "
+			else
+				directionArrow = " =====> "
+			end if
+		end if
+	else
+		if (stereotype = "extend") then
+			directionArrow = " <===(" & stereotype &")== "
+		else 
+			if(stereotype <> "" ) then
+				directionArrow = " <===(" & stereotype &")== "
+			else
+				directionArrow = " <===== "
+			end if
+		end if
+	end if
+end function 
+
+
+function filterElement(ByRef element)
+	filterElement = (true and filterByStatus(element) and filterByVersion(element) and filterByPath(element))
+end function
+
+function filterByStatus(ByRef element)
+	if STATUS_FILTER = "" then 
+		filterByStatus = true
+		exit function 
+	end if
+	
+	if (element.Status = STATUS_FILTER) then 
+		filterByStatus = true
+	else
+		filterByStatus = false
+	end if
+	
+end function
+
+function filterByVersion(ByRef element)
+	if STATUS_VERSION = "" then 
+		filterByVersion = true
+		exit function 
+	end if
+	
+	if (element.Version = STATUS_VERSION) then 
+		filterByVersion = true
+	else
+		filterByVersion = false
+	end if
+
+end function
+
+function filterByPath(ByRef element)
+	if STATUS_PATH = "" then 
+		filterByPath = true
+		exit function 
+	end if
+	
+	if (InStr(element.FQName, STATUS_PATH)>0) then 
+		filterByPath = true
+	else
+		filterByPath = false
+	end if
+
+end function
+		
+	
+	
 DocumentationExample
